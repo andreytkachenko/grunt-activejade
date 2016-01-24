@@ -1,4 +1,3 @@
-
 'use strict';
 
 var chalk = require('chalk');
@@ -59,6 +58,8 @@ module.exports = function(grunt) {
 
                 if (options.callback) {
                     templates.push(options.callback + '(' + JSON.stringify(filename) + ', ' + compiled + ');\n');
+                } else if (options.type === 'html') {
+                    templates.push('__templates[' + JSON.stringify(filename) + ']=' + compiled + ';\n');
                 } else {
                     templates.push(compiled);
                 }
@@ -69,16 +70,39 @@ module.exports = function(grunt) {
             if (output.length < 1) {
                 grunt.log.warn('Destination not written because compiled files were empty.');
             } else {
-                if (options.client) {
-                    if (options.node) {
-                        var nodeExport = 'if (typeof exports === \'object\' && exports) {';
-                        nodeExport += 'module.exports = ' + nsInfo.namespace + ';}';
+                if (options.html) {
+                    var __templates = {};
+                    eval(output.join(grunt.util.normalizelf(options.separator)));
+                    var tpl, keys = Object.keys(__templates);
 
-                        output.push(nodeExport);
+                    if (keys.length === 1) {
+                        tpl = __templates[keys[0]];
+                    } else if (__templates[options.main]) {
+                        tpl = __templates[options.main];
                     }
+
+                    if (!tpl) {
+                        throw new Error('No template!');
+                    }
+
+                    var html = activejade.HtmlGenerator(tpl(options.context || {}, new activejade.BaseGenerator({
+                        templates: __templates
+                    })));
+
+                    grunt.file.write(f.dest, html);
+                } else {
+                    if (options.client) {
+                        if (options.node) {
+                            var nodeExport = 'if (typeof exports === \'object\' && exports) {';
+                            nodeExport += 'module.exports = ' + nsInfo.namespace + ';}';
+
+                            output.push(nodeExport);
+                        }
+                    }
+
+                    grunt.file.write(f.dest, output.join(grunt.util.normalizelf(options.separator)));
                 }
 
-                grunt.file.write(f.dest, output.join(grunt.util.normalizelf(options.separator)));
                 grunt.verbose.writeln('File ' + chalk.cyan(f.dest) + ' created.');
             }
         });
